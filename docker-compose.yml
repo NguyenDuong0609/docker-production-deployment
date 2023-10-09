@@ -1,0 +1,127 @@
+version: '3.4'
+
+services:
+  backend:
+    container_name: backend
+    image: backend
+    build:
+      context: .
+      dockerfile: ./mern/backend/Dockerfile
+    environment:
+      NODE_ENV: production
+    ports:
+      - 5000:5000
+    volumes:
+      - ./mern/backend:/usr/src/app
+    links:
+      - mongodb
+    restart: always
+    depends_on:
+      - mongodb
+
+  client:
+    container_name: client
+    build:
+      context: .
+      dockerfile: ./mern/client/Dockerfile
+    restart: always
+    volumes:
+      - ./mern/client:/app
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mongodb
+
+  mongodb:
+    container_name: mongo
+    image: mongo:3.4
+    ports:
+      - 27017:27017
+    volumes:
+      - data:/data/db
+    restart: always
+
+# PHP-FPM - Service
+  app:
+    build:
+      context: .
+      dockerfile: ./ecommerce_laravel8/Dockerfile
+
+    container_name: app
+    restart: unless-stopped
+    tty: true
+    working_dir: /var/www/
+
+    volumes:
+      - ./ecommerce_laravel8/:/var/www
+      - ./ecommerce_laravel8/docker-files/php/local.ini:/usr/local/etc/php/conf.d/local.ini
+
+    networks:
+      - app-network
+
+# NGINX - Service
+  webserver:
+    image: nginx:alpine
+    container_name: webserver
+    restart: unless-stopped
+    tty: true
+
+    ports: 
+      - "8100:80"
+      - "8143:443"
+
+    volumes:
+      - ./ecommerce_laravel8/:/var/www
+      - ./ecommerce_laravel8/docker-files/nginx/conf.d/:/etc/nginx/conf.d/
+
+    networks:
+      - app-network
+
+# MysqlDB - Service
+  db:
+    image: mysql:8.0
+    container_name: db
+    restart: unless-stopped
+    tty: true
+
+    ports:
+     - "3306:3306"
+  
+    environment:
+      - MYSQL_DATABASE=ecommerce
+      - MYSQL_ROOT_PASSWORD=123456
+
+    volumes:
+      - mysqldbdata:/var/lib/mysql
+      - ./ecommerce_laravel8/docker-files/mysql/my.cnf:/etc/mysql/my.cnf
+
+    networks:
+      - app-network
+# Phpmyadmin:
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    environment: 
+      PMA_HOSTS: db
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: 123456
+    ports:
+      - "8081:80"
+    restart: always
+    volumes:
+      - ./ecommerce_laravel8/docker-files/php/local.ini:/usr/local/etc/php/conf.d/local.ini
+    networks:
+      - app-network
+
+# Volumes:
+volumes:
+  mysqldbdata:
+    driver: local
+  data:
+
+# Networks:
+networks:
+  app-network:
+    driver: bridge
