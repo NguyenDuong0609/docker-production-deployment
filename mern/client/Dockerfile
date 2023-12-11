@@ -1,13 +1,15 @@
+# Dockerfile stage PRODUCTION
 FROM node:12.22.4-alpine
-RUN mkdir -p /app
+
 WORKDIR /app
 
-COPY ./mern/client/package.json ./
-
-RUN npm install
+COPY ./mern/client ./
 
 COPY . .
+RUN npm install
+# remove command build stage DEV
+RUN npm run build
 
 EXPOSE 3000
-
-CMD ["npm", "run", "dev"]
+# change CMD ["npm", "run", "dev"] stage DEV
+CMD ["npm", "start"]

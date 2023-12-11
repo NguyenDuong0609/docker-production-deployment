@@ -1,8 +1,109 @@
 version: '3.4'
 
 services:
-  backend:
-    container_name: backend
+# PHP-FPM - Service
+  laravel:
+    build:
+      context: .
+      dockerfile: ./ecommerce_laravel8/Dockerfile
+    ports:
+      - "9000:9000"
+    container_name: laravel
+    restart: unless-stopped
+    tty: true
+    working_dir: /var/www/
+
+    volumes:
+      - ./ecommerce_laravel8/:/var/www
+      - ./ecommerce_laravel8/docker-files/php/local.ini:/usr/local/etc/php/conf.d/local.ini
+      - /var/www/vendor
+      - /var/www/node_modules
+    labels:
+      - "traefik.enable=true"
+    networks:
+      - app-network
+    depends_on:
+      - mysql
+      - traefik
+
+# NGINX - Service
+  webserver:
+    image: nginx:1.18-alpine
+    container_name: webserver
+    restart: unless-stopped
+    tty: true
+
+    ports: 
+      - "8080:80"
+
+    volumes:
+      - ./ecommerce_laravel8/:/var/www
+      - ./ecommerce_laravel8/docker-files/nginx/conf.d/:/etc/nginx/conf.d/
+
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.webserver.rule=Host(`laravel.localhost`) && PathPrefix(`/`)"
+      - "traefik.http.routers.webserver.middlewares=portainer-prefix"
+      - "traefik.http.middlewares.portainer-prefix.stripprefix.prefixes=/"
+      - "traefik.http.middlewares.portainer-prefix.stripprefix.forceslash=false"
+
+    networks:
+      - app-network
+
+    depends_on:
+      - laravel
+      - mysql
+      - traefik
+
+# MysqlDB - Service
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    restart: always
+    tty: true
+
+    ports:
+     - "3306:3306"
+
+    environment:
+      - MYSQL_DATABASE=ecommerce
+      - MYSQL_ROOT_PASSWORD=Duong_2824
+      - MYSQL_PASSWORD=Duong_2824
+      - SERVICE_TAGS=dev
+      - SERVICE_NAME=mysql
+
+    volumes:
+      - ./ecommerce_laravel8/docker-files/mysql/db:/var/lib/mysql
+      - ./ecommerce_laravel8/docker-files/mysql/my.cnf:/etc/mysql/my.cnf
+      # import database
+      - ./ecommerce_laravel8/docker-files/mysql/init:/docker-entrypoint-initdb.d
+    labels:
+      - "traefik.enable=true"
+    networks:
+      - app-network
+
+# Phpmyadmin:
+  # phpmyadmin:
+  #   image: phpmyadmin/phpmyadmin
+  #   container_name: phpmyadmin
+  #   environment: 
+  #     PMA_HOSTS: mysql
+  #     PMA_PORT: 3306
+  #     PMA_USER: root
+  #     PMA_PASSWORD: Duong_2824
+  #   ports:
+  #     - "8082:80"
+  #   restart: always
+  #   volumes:
+  #     - ./ecommerce_laravel8/docker-files/php/local.ini:/usr/local/etc/php/conf.d/local.ini
+  #   labels:
+  #     - "traefik.enable=true"
+  #   networks:
+  #     - app-network
+
+# MERN Stack:
+  nodejs:
+    container_name: nodejs
     image: backend
     build:
       context: .
@@ -13,14 +114,19 @@ services:
       - 5000:5000
     volumes:
       - ./mern/backend:/usr/src/app
+    labels:
+      - "traefik.enable=true"
     links:
       - mongodb
     restart: always
     depends_on:
       - mongodb
+      - traefik
+    networks:
+      - app-network
 
-  client:
-    container_name: client
+  nextjs:
+    container_name: nextjs
     build:
       context: .
       dockerfile: ./mern/client/Dockerfile
@@ -31,94 +137,55 @@ services:
       - /app/.next
     ports:
       - "3000:3000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.client.rule=Host(`client.localhost`)"
+      - "traefik.http.routers.client.entrypoints=web"
+    networks:
+      - app-network
     depends_on:
       - mongodb
+      - traefik
 
   mongodb:
     container_name: mongo
     image: mongo:3.4
-    ports:
-      - 27017:27017
-    volumes:
-      - data:/data/db
-    restart: always
-
-# PHP-FPM - Service
-  app:
-    build:
-      context: .
-      dockerfile: ./ecommerce_laravel8/Dockerfile
-
-    container_name: app
-    restart: unless-stopped
-    tty: true
-    working_dir: /var/www/
-
-    volumes:
-      - ./ecommerce_laravel8/:/var/www
-      - ./ecommerce_laravel8/docker-files/php/local.ini:/usr/local/etc/php/conf.d/local.ini
-
-    networks:
-      - app-network
-
-# NGINX - Service
-  webserver:
-    image: nginx:alpine
-    container_name: webserver
-    restart: unless-stopped
-    tty: true
-
-    ports: 
-      - "8100:80"
-      - "8143:443"
-
-    volumes:
-      - ./ecommerce_laravel8/:/var/www
-      - ./ecommerce_laravel8/docker-files/nginx/conf.d/:/etc/nginx/conf.d/
-
-    networks:
-      - app-network
-
-# MysqlDB - Service
-  db:
-    image: mysql:8.0
-    container_name: db
-    restart: unless-stopped
-    tty: true
-
-    ports:
-     - "3306:3306"
-  
+    command: [--auth]
     environment:
-      - MYSQL_DATABASE=ecommerce
-      - MYSQL_ROOT_PASSWORD=123456
-
+      - MONGO_INITDB_DATABASE=admin
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=Duong_2824
+    ports:
+      - 27018:27017
     volumes:
-      - mysqldbdata:/var/lib/mysql
-      - ./ecommerce_laravel8/docker-files/mysql/my.cnf:/etc/mysql/my.cnf
-
+      - ./mongo/data/init-mongo.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+      # import database
+      - ./mongo/data:/data/db
+    labels:
+      - "traefik.enable=true"
+    restart: always
     networks:
       - app-network
-# Phpmyadmin:
-  phpmyadmin:
-    image: phpmyadmin/phpmyadmin
-    environment: 
-      PMA_HOSTS: db
-      PMA_PORT: 3306
-      PMA_USER: root
-      PMA_PASSWORD: 123456
+
+  traefik:
+    image: traefik:v2.10
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--entryPoints.web.address=:80"
+      - "--providers.docker.exposedbydefault=false"
     ports:
-      - "8081:80"
-    restart: always
+      - "80:80"
+      - "8081:8080"
     volumes:
-      - ./ecommerce_laravel8/docker-files/php/local.ini:/usr/local/etc/php/conf.d/local.ini
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
     networks:
       - app-network
 
 # Volumes:
 volumes:
-  mysqldbdata:
-    driver: local
+  # mysqldbdata:
+  #   driver: local
   data:
 
 # Networks:
