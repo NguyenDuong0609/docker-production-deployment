@@ -10,6 +10,6 @@ RUN npm install
 # remove command build stage DEV
 RUN npm run build
 
-EXPOSE 3000
+EXPOSE 3001
 # change CMD ["npm", "run", "dev"] stage DEV
 CMD ["npm", "start"]

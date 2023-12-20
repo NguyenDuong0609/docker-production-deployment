@@ -33,7 +33,7 @@ services:
     restart: unless-stopped
     tty: true
 
-    ports: 
+    ports:
       - "8080:80"
 
     volumes:
@@ -42,10 +42,12 @@ services:
 
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.webserver.rule=Host(`laravel.localhost`) && PathPrefix(`/`)"
+      - "traefik.http.routers.webserver.rule=Host(`laravel.nguyenduongdev.com`) && PathPrefix(`/`)"
       - "traefik.http.routers.webserver.middlewares=portainer-prefix"
       - "traefik.http.middlewares.portainer-prefix.stripprefix.prefixes=/"
       - "traefik.http.middlewares.portainer-prefix.stripprefix.forceslash=false"
+      - "traefik.http.routers.webserver.entrypoints=websecure"
+      - "traefik.http.routers.webserver.tls.certresolver=myresolver"
 
     networks:
       - app-network
@@ -82,111 +84,122 @@ services:
     networks:
       - app-network
 
-# Phpmyadmin:
-  # phpmyadmin:
-  #   image: phpmyadmin/phpmyadmin
-  #   container_name: phpmyadmin
-  #   environment: 
-  #     PMA_HOSTS: mysql
-  #     PMA_PORT: 3306
-  #     PMA_USER: root
-  #     PMA_PASSWORD: Duong_2824
-  #   ports:
-  #     - "8082:80"
-  #   restart: always
-  #   volumes:
-  #     - ./ecommerce_laravel8/docker-files/php/local.ini:/usr/local/etc/php/conf.d/local.ini
-  #   labels:
-  #     - "traefik.enable=true"
-  #   networks:
-  #     - app-network
-
 # MERN Stack:
   nodejs:
-    container_name: nodejs
-    image: backend
-    build:
-      context: .
-      dockerfile: ./mern/backend/Dockerfile
-    environment:
-      NODE_ENV: production
-    ports:
-      - 5000:5000
-    volumes:
-      - ./mern/backend:/usr/src/app
-    labels:
-      - "traefik.enable=true"
-    links:
-      - mongodb
-    restart: always
-    depends_on:
-      - mongodb
-      - traefik
-    networks:
-      - app-network
+   container_name: nodejs
+   image: backend
+   build:
+     context: .
+     dockerfile: ./mern/backend/Dockerfile
+   environment:
+     NODE_ENV: production
+   ports:
+     - 5001:5001
+   volumes:
+     - ./mern/backend:/usr/src/app
+   labels:
+     - "traefik.enable=true"
+     - "traefik.http.routers.nodejs.rule=Host(`api.nguyenduongdev.com`)"
+     - "traefik.http.routers.nodejs.entrypoints=websecure"
+     - "traefik.http.routers.nodejs.tls.certresolver=myresolver"
+   links:
+     - mongodb
+   restart: always
+   depends_on:
+     - mongodb
+     - traefik
+   networks:
+     - app-network
 
   nextjs:
-    container_name: nextjs
-    build:
-      context: .
-      dockerfile: ./mern/client/Dockerfile
-    restart: always
-    volumes:
-      - ./mern/client:/app
-      - /app/node_modules
-      - /app/.next
-    ports:
-      - "3000:3000"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.client.rule=Host(`client.localhost`)"
-      - "traefik.http.routers.client.entrypoints=web"
-    networks:
-      - app-network
-    depends_on:
-      - mongodb
-      - traefik
+   container_name: nextjs
+   build:
+     context: .
+     dockerfile: ./mern/client/Dockerfile
+   restart: always
+   volumes:
+     - ./mern/client:/app
+     - /app/node_modules
+     - /app/.next
+   ports:
+     - "3001:3001"
+   labels:
+     - "traefik.enable=true"
+     - "traefik.http.routers.nextjs.rule=Host(`nguyenduongdev.com`)"
+     - "traefik.http.routers.nextjs.entrypoints=websecure"
+     - "traefik.http.routers.nextjs.tls.certresolver=myresolver"
+   networks:
+     - app-network
+   depends_on:
+     - mongodb
+     - traefik
 
   mongodb:
-    container_name: mongo
-    image: mongo:3.4
-    command: [--auth]
-    environment:
-      - MONGO_INITDB_DATABASE=admin
-      - MONGO_INITDB_ROOT_USERNAME=root
-      - MONGO_INITDB_ROOT_PASSWORD=Duong_2824
-    ports:
-      - 27018:27017
-    volumes:
-      - ./mongo/data/init-mongo.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
-      # import database
-      - ./mongo/data:/data/db
-    labels:
-      - "traefik.enable=true"
-    restart: always
-    networks:
-      - app-network
+   container_name: mongo
+   image: mongo:3.4
+   command: [--auth]
+   environment:
+     - MONGO_INITDB_DATABASE=admin
+     - MONGO_INITDB_ROOT_USERNAME=root
+     - MONGO_INITDB_ROOT_PASSWORD=Duong_2824
+   ports:
+     - 27018:27017
+   volumes:
+     - ./mongo/data/init-mongo.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    #import database
+     - ./mongo/data:/data/db
+   labels:
+     - "traefik.enable=true"
+   restart: always
+   networks:
+     - app-network
 
   traefik:
     image: traefik:v2.10
     command:
       - "--api.insecure=true"
       - "--providers.docker=true"
-      - "--entryPoints.web.address=:80"
+      # Configure entrypoint
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      # SSL configuration
+      - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
+      - "--certificatesresolvers.myresolver.acme.email=nguyenduong2824@gmail.com"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+      # Enable dashboard
       - "--providers.docker.exposedbydefault=false"
+      # Turn on log
+      - "--accesslog=true"
+      - "--accesslog.filePath=/logs/access.log"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard-http.entrypoints=web"
+      - "traefik.http.routers.dashboard-http.rule=Host(`dashboard.nguyenduongdev.com`)"
+      - "traefik.http.routers.dashboard-http.service=api@internal"
+      - "traefik.http.routers.dashboard.entrypoints=websecure"
+      - "traefik.http.routers.dashboard.rule=Host(`dashboard.nguyenduongdev.com`)"
+      - "traefik.http.routers.dashboard.tls=true"
+      - "traefik.http.routers.dashboard.tls.certresolver=myresolver"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.dashboard.middlewares=traefik-auth"
+      # authenticate user/pass:Duong_2824
+      - "traefik.http.middlewares.traefik-auth.basicauth.users=admin:$$apr1$$4cTVQuEm$$2wo3CwQ4mTZTE5YFOLjKb/"
     ports:
       - "80:80"
       - "8081:8080"
+      - "443:443"
     volumes:
+      - "./letsencrypt:/letsencrypt"
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - ./logs/:/logs/
     networks:
       - app-network
 
 # Volumes:
 volumes:
-  # mysqldbdata:
-  #   driver: local
-  data:
+    mysqldbdata:
+      driver: local
+    data:
 
 # Networks:
 networks:
