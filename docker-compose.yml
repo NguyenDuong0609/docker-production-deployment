@@ -75,11 +75,10 @@ services:
       - SERVICE_NAME=mysql
 
     volumes:
-      - ./ecommerce_laravel8/docker-files/mysql/db:/var/lib/mysql
+      - mysqldbdata:/var/lib/mysql
       - ./ecommerce_laravel8/docker-files/mysql/my.cnf:/etc/mysql/my.cnf
       # import database
       - ./ecommerce_laravel8/docker-files/mysql/init:/docker-entrypoint-initdb.d
-      - mysqldbdata:/backup_data
     labels:
       - "traefik.enable=true"
     networks:
@@ -148,8 +147,7 @@ services:
    volumes:
      - ./mongo/data/init-mongo.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
     #import database
-     - ./mongo/data:/data/db
-     - mongodata:/data/db/backup_data
+     - mongodbdata:/data/db
    labels:
      - "traefik.enable=true"
    restart: always
@@ -201,7 +199,7 @@ services:
 volumes:
     mysqldbdata:
       driver: local
-    mongodata:
+    mongodbdata:
 
 # Networks:
 networks:
